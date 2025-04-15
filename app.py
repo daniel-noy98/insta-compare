@@ -1,15 +1,55 @@
 
 import streamlit as st
 from bs4 import BeautifulSoup
+import pandas as pd
 import re
 
-st.set_page_config(page_title="השוואת עוקבים באינסטגרם", layout="centered")
-st.title("📊 השוואת עוקבים ונעקבים מהורדת HTML של אינסטגרם")
+st.set_page_config(page_title="ניתוח עוקבים", layout="centered")
 
-st.markdown("העלאת קבצי `followers_1.html` ו־`following.html` כפי שהורדו מאינסטגרם")
+# Custom CSS styling
+st.markdown("""
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Assistant:wght@400;700&display=swap');
+        body, .stApp {
+            font-family: 'Assistant', sans-serif;
+            color: black;
+            text-align: center;
+        }
+        .title {
+            font-size: 16pt;
+            font-weight: bold;
+            text-decoration: underline;
+            margin-bottom: 20px;
+        }
+        .pink-button label div[data-testid="stFileUploaderDropzone"] {
+            background-color: #fde4ec;
+            color: black;
+            font-weight: bold;
+            border-radius: 8px;
+            border: 1px solid #f5c8d4;
+            padding: 12px;
+            text-align: center;
+            cursor: pointer;
+        }
+        thead tr th {
+            background-color: #fde4ec !important;
+            color: black;
+        }
+        .stTabs [role="tablist"] {
+            justify-content: center;
+        }
+    </style>
+""", unsafe_allow_html=True)
 
-followers_file = st.file_uploader("העלה את הקובץ followers_1.html", type="html")
-following_file = st.file_uploader("העלה את הקובץ following.html", type="html")
+st.markdown('<div class="title">ניתוח עוקבים</div>', unsafe_allow_html=True)
+
+col1, col2 = st.columns(2)
+with col1:
+    followers_file = st.file_uploader("העלאת קובץ followers_1", type="html", key="followers", label_visibility="collapsed")
+    st.markdown('<div class="pink-button">העלאת קובץ followers_1</div>', unsafe_allow_html=True)
+with col2:
+    following_file = st.file_uploader("העלאת קובץ following", type="html", key="following", label_visibility="collapsed")
+    st.markdown('<div class="pink-button">העלאת קובץ following</div>', unsafe_allow_html=True)
 
 def extract_usernames(html_file):
     soup = BeautifulSoup(html_file, "html.parser")
@@ -21,27 +61,25 @@ def extract_usernames(html_file):
             usernames.append(match.group(1))
         else:
             usernames.append(link.text.strip())
-    return list(set(usernames))
+    return sorted(list(set(usernames)))
 
 if followers_file and following_file:
-    with st.spinner("מנתח את הנתונים..."):
-        followers = extract_usernames(followers_file)
-        following = extract_usernames(following_file)
+    followers = extract_usernames(followers_file)
+    following = extract_usernames(following_file)
 
-        followers_set = set(followers)
-        following_set = set(following)
+    followers_set = set(followers)
+    following_set = set(following)
 
-        not_following_back = following_set - followers_set
-        fans = followers_set - following_set
-        mutual = followers_set & following_set
+    mutual = sorted(followers_set & following_set)
+    you_only = sorted(following_set - followers_set)
+    they_only = sorted(followers_set - following_set)
 
-        st.success("✅ הניתוח הושלם!")
+    max_len = max(len(mutual), len(you_only), len(they_only))
+    df = pd.DataFrame({
+        "עוקבים הדדיים": mutual + [""] * (max_len - len(mutual)),
+        "במעקב על ידך בלבד": you_only + [""] * (max_len - len(you_only)),
+        "במעקב על ידם בלבד": they_only + [""] * (max_len - len(they_only)),
+    })
 
-        st.subheader("👥 עוקבים הדדיים:")
-        st.write(sorted(mutual))
-
-        st.subheader("🚫 את עוקבת – הם לא עוקבים חזרה:")
-        st.write(sorted(not_following_back))
-
-        st.subheader("🙋‍♀️ הם עוקבים – ואת לא:")
-        st.write(sorted(fans))
+    st.markdown("---")
+    st.dataframe(df, use_container_width=True, height=400)
